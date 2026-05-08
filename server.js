@@ -46,6 +46,10 @@ app.post("/api/sendCode", async (req, res) => {
   try {
     const { email, code } = req.body;
 
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: "Paramètres manquants" });
+    }
+
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: 587,
@@ -72,4 +76,87 @@ app.post("/api/sendCode", async (req, res) => {
 //  OTP — VÉRIFICATION DU CODE
 // ===============================
 app.post("/api/verify", (req, res) => {
-  const { user
+  const { userCode, realCode } = req.body;
+
+  if (!userCode || !realCode) {
+    return res.status(400).json({ success: false, error: "Paramètres manquants" });
+  }
+
+  if (userCode !== realCode) {
+    return res.json({ success: false, error: "Code incorrect" });
+  }
+
+  res.json({ success: true });
+});
+
+// ===============================
+//  ANALYSE IA — SIGHTENGINE
+// ===============================
+app.post("/api/scan", async (req, res) => {
+  try {
+    const { type, data } = req.body;
+
+    if (!SE_USER || !SE_SECRET) {
+      return res.json({ error: true, message: "Sightengine non configuré" });
+    }
+
+    if (!type || !data) {
+      return res.status(400).json({ error: true, message: "Paramètres manquants" });
+    }
+
+    const payload = {
+      api_user: SE_USER,
+      api_secret: SE_SECRET
+    };
+
+    if (type === "image") {
+      payload.url = data;
+      payload.models = "nudity,offensive,faces,quality";
+    } else if (type === "text") {
+      payload.text = data;
+      payload.models = "text-content";
+    } else {
+      return res.status(400).json({ error: true, message: "Type invalide" });
+    }
+
+    const response = await fetch("https://api.sightengine.com/1.0/check.json", {
+      method: "POST",
+      body: new URLSearchParams(payload)
+    });
+
+    const result = await response.json();
+    res.json(result);
+  } catch (err) {
+    console.error("SCAN ERROR:", err);
+    res.status(500).json({ error: true, message: "Erreur analyse IA" });
+  }
+});
+
+// ===============================
+//  STRIPE — CHECKOUT
+// ===============================
+app.post("/api/create-checkout-session", async (req, res) => {
+  try {
+    const stripe = new Stripe(STRIPE_SECRET_KEY);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: "https://veritas-scan.com/success",
+      cancel_url: "https://veritas-scan.com/cancel"
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("STRIPE ERROR:", err);
+    res.status(500).json({ error: "Erreur Stripe" });
+  }
+});
+
+// ===============================
+//  DÉMARRAGE SERVEUR
+// ===============================
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`✅ VERITAS SCAN™ API démarrée sur le port ${PORT}`);
+});
