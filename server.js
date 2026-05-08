@@ -61,21 +61,31 @@ app.post("/api/sendCode", async (req, res) => {
 });
 
 // --- Route Stripe ---
-app.post("/api/create-checkout-session", async (req, res) => {
+app.post("/api/sendCode", async (req, res) => {
   try {
-    const stripe = new Stripe(STRIPE_SECRET_KEY);
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-      success_url: "https://veritas-scan.com/success",
-      cancel_url: "https://veritas-scan.com/cancel"
+    const { email, code } = req.body;
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: 587,
+      secure: false,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
-    res.json({ url: session.url });
+
+    await transporter.sendMail({
+      from: `"VERITAS SCAN™" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: "Votre code de vérification",
+      text: `Votre code est : ${code}`,
+      html: `<h2>Code de vérification</h2><p>${code}</p>`
+    });
+
+    res.json({ success: true, message: "Email envoyé" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Erreur Stripe" });
+    res.status(500).json({ success: false, error: "Erreur SMTP" });
   }
 });
+
 
 // --- Démarrage serveur ---
 const PORT = process.env.PORT || 10000;
