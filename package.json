@@ -1,7 +1,7 @@
 {
   "name": "veritas-scan-server",
-  "version": "7.0.0",
-  "description": "VERITAS SCAN™ — Serveur autonome sans MongoDB ni Redis",
+  "version": "8.0.0",
+  "description": "VERITAS SCAN™ v8 — Serveur autonome, Render ready",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
