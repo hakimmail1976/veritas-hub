@@ -9,27 +9,23 @@ app.use(cors());
 
 // --- Variables d'environnement ---
 const {
-  JWT_SECRET,
-  SE_USER,
-  SE_SECRET,
   SMTP_HOST,
   SMTP_USER,
   SMTP_PASS,
   STRIPE_SECRET_KEY,
-  STRIPE_PRICE_ID,
-  STRIPE_WEBHOOK_SECRET
+  STRIPE_PRICE_ID
 } = process.env;
 
 // --- Route principale ---
 app.get("/", (req, res) => {
   res.json({
     status: "VERITAS SCAN™ v8.0",
-    engine: SE_USER ? "Sightengine connecté" : "Ajoutez SE_USER...",
+    engine: process.env.SE_USER ? "Sightengine connecté" : "Ajoutez SE_USER...",
     users: 0
   });
 });
 
-// --- Route test santé ---
+// --- Route santé ---
 app.get("/health", (req, res) => {
   res.json({ status: "VERITAS API OK" });
 });
@@ -38,6 +34,7 @@ app.get("/health", (req, res) => {
 app.post("/api/sendCode", async (req, res) => {
   try {
     const { email, code } = req.body;
+
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: 587,
@@ -61,32 +58,26 @@ app.post("/api/sendCode", async (req, res) => {
 });
 
 // --- Route Stripe ---
-app.post("/api/sendCode", async (req, res) => {
+app.post("/api/create-checkout-session", async (req, res) => {
   try {
-    const { email, code } = req.body;
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: 587,
-      secure: false,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    const stripe = new Stripe(STRIPE_SECRET_KEY);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: "https://veritas-scan.com/success",
+      cancel_url: "https://veritas-scan.com/cancel"
     });
 
-    await transporter.sendMail({
-      from: `"VERITAS SCAN™" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: "Votre code de vérification",
-      text: `Votre code est : ${code}`,
-      html: `<h2>Code de vérification</h2><p>${code}</p>`
-    });
-
-    res.json({ success: true, message: "Email envoyé" });
+    res.json({ url: session.url });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: "Erreur SMTP" });
+    res.status(500).json({ error: "Erreur Stripe" });
   }
 });
 
-
 // --- Démarrage serveur ---
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ VERITAS SCAN™ API démarrée sur le port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ VERITAS SCAN™ API démarrée sur le port ${PORT}`)
+);
