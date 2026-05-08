@@ -2,35 +2,46 @@ import express from "express";
 import cors from "cors";
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
+import fetch from "node-fetch";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 app.use(cors());
 
-// --- Variables d'environnement ---
+// ===============================
+//  VARIABLES ENVIRONNEMENT
+// ===============================
 const {
   SMTP_HOST,
   SMTP_USER,
   SMTP_PASS,
+  SE_USER,
+  SE_SECRET,
   STRIPE_SECRET_KEY,
   STRIPE_PRICE_ID
 } = process.env;
 
-// --- Route principale ---
+// ===============================
+//  ROUTE PRINCIPALE
+// ===============================
 app.get("/", (req, res) => {
   res.json({
     status: "VERITAS SCAN™ v8.0",
-    engine: process.env.SE_USER ? "Sightengine connecté" : "Ajoutez SE_USER...",
+    engine: SE_USER ? "Sightengine connecté" : "Ajoutez SE_USER...",
     users: 0
   });
 });
 
-// --- Route santé ---
+// ===============================
+//  ROUTE SANTÉ
+// ===============================
 app.get("/health", (req, res) => {
   res.json({ status: "VERITAS API OK" });
 });
 
-// --- Route OTP email ---
+// ===============================
+//  OTP — ENVOI DU CODE
+// ===============================
 app.post("/api/sendCode", async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -52,32 +63,13 @@ app.post("/api/sendCode", async (req, res) => {
 
     res.json({ success: true, message: "Email envoyé" });
   } catch (err) {
-    console.error(err);
+    console.error("SMTP ERROR:", err);
     res.status(500).json({ success: false, error: "Erreur SMTP" });
   }
 });
 
-// --- Route Stripe ---
-app.post("/api/create-checkout-session", async (req, res) => {
-  try {
-    const stripe = new Stripe(STRIPE_SECRET_KEY);
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-      success_url: "https://veritas-scan.com/success",
-      cancel_url: "https://veritas-scan.com/cancel"
-    });
-
-    res.json({ url: session.url });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur Stripe" });
-  }
-});
-
-// --- Démarrage serveur ---
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () =>
-  console.log(`✅ VERITAS SCAN™ API démarrée sur le port ${PORT}`)
-);
+// ===============================
+//  OTP — VÉRIFICATION DU CODE
+// ===============================
+app.post("/api/verify", (req, res) => {
+  const { user
