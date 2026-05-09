@@ -1,13 +1,32 @@
 {
   "name": "veritas-hub",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Serveur Veritas SCAN - API d'analyse d'images",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
-  }
+    "cors": "^2.8.6",
+    "express": "^4.22.1",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^8.0.7",
+    "stripe": "^22.1.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hakimmail1976/veritas-hub.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hakimmail1976/veritas-hub/issues"
+  },
+  "homepage": "https://github.com/hakimmail1976/veritas-hub#readme"
 }
