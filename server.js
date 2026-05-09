@@ -27,149 +27,22 @@ const jwt        = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 
 const app  = express();
+
+// ===============================
+// 5) LANCEMENT SERVEUR
+// ===============================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// ⚠️ IMPORTANT POUR RENDER : écouter sur 0.0.0.0
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 VERITAS SCAN™ v8.0 démarré — port ${PORT}`);
 });
-
 
 // ─── CONFIG ───────────────────────────────────────────────
 const SE_USER     = process.env.SE_USER             || "";
 const SE_SECRET   = process.env.SE_SECRET           || "";
 const HAS_SE      = SE_USER.length > 3 && SE_SECRET.length > 3;
-const JWT_SECRET  = process.env.JWT_SECRET          || "veritas-secret-" + crypto.randomBytes(16).toString('hex');
-const STRIPE_SK   = process.env.STRIPE_SECRET_KEY   || "";
-const STRIPE_PID  = process.env.STRIPE_PRICE_ID     || "";
-const WEBHOOK_SEC = process.env.STRIPE_WEBHOOK_SECRET || "";
-const FRONT_URL   = process.env.FRONTEND_URL        || "https://veritas-scan.makmoul.com";
-const HAS_SMTP    = !!process.env.SMTP_USER;
-const TRIAL_DAYS  = 5;
-const FREE_DAILY  = 3;
-const MAX_ABUSE   = 3;
-
-let stripe = null;
-if (STRIPE_SK && STRIPE_SK.startsWith("sk_")) {
-  try { stripe = require('stripe')(STRIPE_SK); console.log("💳 Stripe initialisé"); }
-  catch(e) { console.warn("⚠️ Stripe module manquant:", e.message); }
-}
-
-// Webhook Stripe — raw body AVANT express.json
-app.post('/v1/webhook', express.raw({ type:'application/json' }), handleStripeWebhook);
-
-app.use(cors({ origin:'*', methods:['GET','POST','OPTIONS'], allowedHeaders:['Content-Type','Authorization','X-Veritas-Client'] }));
-app.use(express.json({ limit:'30mb' }));
-
-// ─── BASE EN MÉMOIRE ──────────────────────────────────────
-const DB = {
-  users:        new Map(),
-  otps:         new Map(),
-  banned_ip:    new Set(),
-  banned_email: new Set(),
-  abuse_ip:     new Map(),
-  abuse_email:  new Map(),
-  cache:        new Map(),
-};
-
-// ─── MAILER ───────────────────────────────────────────────
-const mailer = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST || "smtp.gmail.com",
-  port:   587,
-  secure: false,
-  auth:   { user: process.env.SMTP_USER || "", pass: process.env.SMTP_PASS || "" }
-});
-
-// ─── RATE LIMIT ───────────────────────────────────────────
-const rl = new Map();
-function rateLimit(req, res, next) {
-  const k = clientIp(req), now = Date.now();
-  const e = rl.get(k);
-  if (!e || now - e.s > 60000) { rl.set(k, { c:1, s:now }); return next(); }
-  if (e.c >= 100) return res.status(429).json({ error:"RATE_LIMIT" });
-  e.c++;
-  next();
-}
-app.use('/v1/auth', rateLimit);
-app.use('/v1/scan', rateLimit);
-
-// ══════════════════════════════════════════════════════════
-//  HEALTH
-// ══════════════════════════════════════════════════════════
-app.get('/', (_, res) => res.json({
-  status:  "VERITAS SCAN™ v8.0",
-  engine:  HAS_SE ? "Sightengine LIVE ✅" : "Ajoutez SE_USER + SE_SECRET sur Render.com",
-  stripe:  stripe ? "Configuré ✅" : "Ajoutez STRIPE_SECRET_KEY (optionnel)",
-  smtp:    HAS_SMTP ? "Configuré ✅" : "Mode dev (code OTP dans la réponse)",
-  users:   DB.users.size,
-  uptime:  Math.floor(process.uptime()) + "s"
-}));
-
-app.get('/v1/health', (_, res) => res.json({
-  status:"ok", version:"8.0", api:HAS_SE,
-  stripe:!!stripe, smtp:HAS_SMTP,
-  users:DB.users.size, cache:DB.cache.size,
-  ts:new Date().toISOString()
-}));
-
-// ══════════════════════════════════════════════════════════
-//  AUTH — INSCRIPTION OTP
-// ══════════════════════════════════════════════════════════
-app.post('/v1/auth/register', async (req, res) => {
-  const { email } = req.body;
-  const ip = clientIp(req);
-
-  if (!email || !isEmail(email))
-    return res.status(400).json({ error:"Email invalide." });
-  if (DB.banned_ip.has(ip))
-    return res.status(403).json({ error:"BANNED_IP", message:"Accès refusé depuis cette IP." });
-  if (DB.banned_email.has(email))
-    return res.status(403).json({ error:"BANNED_EMAIL", message:"Cet email est banni." });
-
-  trackAbuse(ip, email);
-  if (isAbusive(ip, email)) {
-    DB.banned_ip.add(ip); DB.banned_email.add(email);
-    console.warn("🚫 BANNI:", ip, email);
-    return res.status(403).json({ error:"BANNED", message:"Trop de tentatives. IP et email bloqués." });
-  }
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  DB.otps.set(email, { code, expires: Date.now() + 10*60*1000, tries: 0 });
-
-  const html = `<div style="font-family:Arial,sans-serif;max-width:460px;background:#0d0d1a;color:#fff;padding:32px;border-radius:16px">
-    <h2 style="color:#2ecc71;margin:0 0 4px">VERITAS SCAN™</h2>
-    <p style="color:rgba(255,255,255,.4);font-size:12px;margin:0 0 24px">Détection forensique universelle</p>
-    <p style="margin:0 0 16px">Votre code de vérification :</p>
-    <div style="background:rgba(46,204,113,.12);border:2px solid #2ecc71;border-radius:12px;padding:20px;text-align:center;margin:0 0 20px">
-      <span style="font-size:42px;font-weight:900;letter-spacing:14px;color:#2ecc71">${code}</span>
-    </div>
-    <p style="color:rgba(255,255,255,.35);font-size:12px">Expire dans 10 minutes. Si vous n'avez pas demandé ce code, ignorez cet email.</p>
-    <p style="color:rgba(255,255,255,.18);font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px;margin-top:20px">
-      © 2026 Hakim MAKMOUL · VERITAS SCAN™ · Brevet INPI 2026<br>9, rue du Galtz — 68000 Colmar, France
-    </p>
-  </div>`;
-
-  let sent = false;
-  if (HAS_SMTP) {
-    try {
-      await mailer.sendMail({
-        from:    `"VERITAS SCAN™" <${process.env.SMTP_USER}>`,
-        to:      email,
-        subject: "Votre code VERITAS SCAN™",
-        html
-      });
-      sent = true;
-      console.log(`📧 OTP envoyé → ${email}`);
-    } catch(e) { console.error("SMTP error:", e.message); }
-  }
-
-  const resp = {
-    success: true,
-    message: sent ? "Code envoyé sur votre email ✉️" : "Code généré (mode dev — SMTP non configuré).",
-    trial:   { days: TRIAL_DAYS, daily: FREE_DAILY }
-  };
-  if (!sent) resp.dev_code = code;
-  res.json(resp);
-});
-
+const JWT_SECRET  = process.env.JWT_SECRET          || "veritas-secret
 // ─── VÉRIFICATION OTP ─────────────────────────────────────
 app.post('/v1/auth/verify', (req, res) => {
   const { email, code } = req.body;
@@ -313,48 +186,7 @@ async function handleStripeWebhook(req, res) {
 app.post('/v1/scan', authMW, async (req, res) => {
   const t0 = Date.now();
   const { type="image_url", data, platform="web", contextText="" } = req.body;
-  if (!data) return res.status(400).json({ error:"Champ 'data' manquant." });
-
-  const user   = DB.users.get(req.user.email);
-  if (!user) return res.status(401).json({ error:"Reconnectez-vous." });
-
-  const status = getUserStatus(user);
-
-  if (status.trialExpired && user.plan !== "premium") {
-    return res.json({
-      verdict:"TRIAL_EXPIRED", confidence:0, upgrade:true,
-      message:`Votre essai de ${TRIAL_DAYS} jours est terminé.\nPassez en PREMIUM — 4,90€/mois — scans illimités.`,
-      scores:{}
-    });
-  }
-  if (user.plan !== "premium" && status.todayCount >= FREE_DAILY) {
-    return res.json({
-      verdict:"QUOTA_EXCEEDED", confidence:0, upgrade:true,
-      message:`Limite journalière atteinte (${FREE_DAILY} scans/jour).\n${status.daysLeft} jour(s) d'essai restant(s).\nPREMIUM = illimité à 4,90€/mois.`,
-      scores:{}
-    });
-  }
-
-  const cacheKey = hash(data + type + platform);
-  const cached   = getCache(cacheKey);
-  if (cached) return res.json({ ...cached, source:'cache', latency:`${Date.now()-t0}ms` });
-
-  try {
-    let result;
-    if      (type === "text")     result = await analyzeText(data);
-    else if (type === "site_url") result = await analyzeSite(data);
-    else                          result = await analyzeImage(data, type, platform, contextText);
-
-    setCache(cacheKey, result);
-    incrScan(user);
-    console.log(`[${user.plan}][${type}] ${platform} → ${result.verdict} | ${Date.now()-t0}ms`);
-    res.json({ ...result, source:'live', latency:`${Date.now()-t0}ms`, scansLeft:scansLeft(user) });
-  } catch(e) {
-    console.error("Pipeline error:", e.message);
-    res.status(500).json({ verdict:'ERROR', confidence:0, message:"Erreur serveur: "+e.message, scores:{} });
-  }
-});
-
+  if (!data) return res.status(400).json
 // ══════════════════════════════════════════════════════════
 //  ANALYSE IMAGE — Sightengine
 // ══════════════════════════════════════════════════════════
@@ -506,7 +338,6 @@ async function analyzeSite(rawUrl) {
   }
   return { verdict, confidence, message, scores:{genAi:0,ela:0,prnu:0,filter:0,deepfake:0,text:0}, details:{domain,tld,isHttps,riskScore:pct(risk),flags:BAD,positive:GOOD}, timestamp:new Date().toISOString() };
 }
-
 // ══════════════════════════════════════════════════════════
 //  ANALYSE TEXTE
 // ══════════════════════════════════════════════════════════
@@ -586,19 +417,17 @@ function setCache(k,v) {
   if (DB.cache.size>8000) DB.cache.delete(DB.cache.keys().next().value);
 }
 
-function hash(d)        { return crypto.createHash('sha256').update(String(d)).digest('hex').slice(0,20); }
-function clamp(v,a,b)   { return Math.max(a,Math.min(b,v||0)); }
-function pct(v)         { return Math.round((v||0)*100); }
-function clientIp(req)  { return (req.headers['x-forwarded-for']||req.socket.remoteAddress||'').split(',')[0].trim(); }
-function isEmail(e)     { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+function hash(d) {
+  return crypto.createHash('sha256').update(String(d)).digest('hex').slice(0,32);
+}
 
-// ─── Démarrage ────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 VERITAS SCAN™ v8.0 démarré — port ${PORT}`);
-  console.log(`🔬 Sightengine  : ${HAS_SE    ? "✅ ACTIVE" : "❌ Ajoutez SE_USER + SE_SECRET"}`);
-  console.log(`💳 Stripe       : ${stripe    ? "✅ Configuré" : "❌ Ajoutez STRIPE_SECRET_KEY (optionnel)"}`);
-  console.log(`📧 SMTP Email   : ${HAS_SMTP  ? "✅ Configuré" : "⚠️  Mode dev (code OTP dans la réponse)"}`);
-  console.log(`🔑 JWT_SECRET   : ${process.env.JWT_SECRET ? "✅ Personnalisé" : "⚠️  Généré aléatoirement (ajoutez JWT_SECRET)"}\n`);
-});
+function pct(x) { return Math.round(x*100); }
+function clamp(x,a,b) { return Math.max(a,Math.min(b,x)); }
 
-module.exports = app;
+function clientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.connection?.remoteAddress
+      || req.socket?.remoteAddress
+      || req.ip
+      || "0.0.0.0";
+}
