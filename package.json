@@ -1,48 +1,19 @@
 {
-  "name": "veritas-hub",
-<<<<<<< HEAD
-  "version": "1.0.0",
-  "description": "Serveur Veritas SCAN - API d'analyse d'images",
-  "main": "server.js",
-  "type": "commonjs",
-=======
+  "name": "veritas-scan-server",
   "version": "8.0.0",
-  "description": "Backend VERITAS SCAN™ SaaS",
+  "description": "VERITAS SCAN™ v8 — Serveur autonome, Render ready",
   "main": "server.js",
-  "type": "module",
->>>>>>> 87b325ee015dbf7941c494625fc3377aa8ef78e0
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev":   "node --watch server.js"
   },
   "dependencies": {
-<<<<<<< HEAD
-    "cors": "^2.8.6",
-    "express": "^4.22.1",
-    "node-fetch": "^3.3.2",
-    "nodemailer": "^8.0.7",
-    "stripe": "^22.1.1"
+    "cors":         "^2.8.5",
+    "express":      "^4.18.2",
+    "form-data":    "^4.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer":   "^6.9.9",
+    "stripe":       "^14.21.0"
   },
-  "engines": {
-    "node": ">=18"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/hakimmail1976/veritas-hub.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/hakimmail1976/veritas-hub/issues"
-  },
-  "homepage": "https://github.com/hakimmail1976/veritas-hub#readme"
-=======
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "node-fetch": "^3.3.2",
-    "nodemailer": "^6.9.8",
-    "stripe": "^12.0.0"
-  }
->>>>>>> 87b325ee015dbf7941c494625fc3377aa8ef78e0
+  "engines": { "node": ">=18.0.0" }
 }
