@@ -28,6 +28,10 @@ const nodemailer = require('nodemailer');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 VERITAS SCAN™ v8.0 démarré — port ${PORT}`);
+});
+
 
 // ─── CONFIG ───────────────────────────────────────────────
 const SE_USER     = process.env.SE_USER             || "";
