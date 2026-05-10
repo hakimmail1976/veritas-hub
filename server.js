@@ -416,12 +416,12 @@ function clamp(v,a,b) { return Math.max(a,Math.min(b,v||0)); }
 function pct(v) { return Math.round((v||0)*100); }
 function getIP(req) { return (req.headers['x-forwarded-for']||req.socket.remoteAddress||'').split(',')[0].trim(); }
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`VERITAS SCAN v8.0 - port ${PORT}`);
-  console.log(`Sightengine: ${HAS_SE?"ACTIVE":"Non configuré (ajoutez SE_USER+SE_SECRET)"}`);
-  console.log(`Stripe: ${stripe?"Configuré":"Non configuré"}`);
-  console.log(`SMTP: ${process.env.SMTP_USER?"Configuré":"Mode dev (code OTP dans la réponse)"}`);
-  console.log(`JWT: ${process.env.JWT_SECRET?"Personnalisé":"Temporaire (ajoutez JWT_SECRET)"}`);
+  console.log(`Sightengine: ${HAS_SE ? "ACTIVE" : "Non configuré (ajoutez SE_USER + SE_SECRET)"}`);
+  console.log(`Stripe: ${stripe ? "Configuré" : "Non configuré"}`);
+  console.log(`SMTP: ${process.env.SMTP_USER ? "Configuré" : "Mode dev (code OTP dans la réponse)"}`);
+  console.log(`JWT: ${process.env.JWT_SECRET ? "Personnalisé" : "Temporaire (ajoutez JWT_SECRET)"}`);
 });
 
 module.exports = app;
