@@ -176,7 +176,7 @@ async function analyzeText(text){
 }
 
 // ── UTILITAIRES ───────────────────────────────────────────
-function auth(req,res,next){const tok=(req.headers.authorization||'').replace('Bearer ','').trim();if(!tok)return res.status(401).json({error:'Non connecté. Ouvrez le popup VERITAS.'});try{req.user=jwt.verify(tok,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expirée. Reconnectez-vous.';});}}
+function auth(req,res,next){const tok=(req.headers.authorization||'').replace('Bearer ','').trim();if(!tok)return res.status(401).json({error:'Non connecté. Ouvrez le popup VERITAS.'});try{req.user=jwt.verify(tok,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expirée. Reconnectez-vous.'});}}
 function status(user){const d=Math.floor((Date.now()-(user.installDate||Date.now()))/86400000),today=new Date().toDateString(),tc=user.todayDate===today?(user.scansToday||0):0;return{plan:user.plan,daysSince:d,daysLeft:Math.max(0,DAYS-d),trialExpired:user.plan!=='premium'&&d>=DAYS,todayCount:tc,totalScans:user.totalScans||0};}
 function scansLeft(user){if(user.plan==='premium')return'∞';const today=new Date().toDateString();return Math.max(0,MAX_DAY-(user.todayDate===today?(user.scansToday||0):0));}
 function incrScan(user){const today=new Date().toDateString();if(user.todayDate!==today){user.todayDate=today;user.scansToday=0;}user.scansToday=(user.scansToday||0)+1;user.totalScans=(user.totalScans||0)+1;}
