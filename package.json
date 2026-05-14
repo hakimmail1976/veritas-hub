@@ -15,5 +15,5 @@
     "nodemailer":   "^6.9.9",
     "stripe":       "^14.21.0"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": { "node": ">=20.0.0" }
 }
